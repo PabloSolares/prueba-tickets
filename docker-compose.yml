@@ -1,0 +1,24 @@
+services:
+  db:
+    image: postgres:17-alpine
+
+    environment:
+      POSTGRES_USER: tickets
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}
+      POSTGRES_DB: tickets
+
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-54329}:5432"
+
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "tickets", "-d", "tickets"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+      start_period: 5s
+
+volumes:
+  pgdata:
