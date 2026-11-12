@@ -3,7 +3,8 @@ import { Hono } from "hono";
 import { db } from './db/client';
 import { bodyLimit } from "hono/body-limit";
 import { authRoutes } from './auth/routes';
-
+import { ApiError } from "./http/errors";
+import { ticketRoutes } from "./tickets/routes";
 export const app = new Hono();
 
 app.get("/api/health", async (c) => {
@@ -32,6 +33,25 @@ app.use("/api/auth/*", bodyLimit({
 }));
 
 app.route("/api/auth", authRoutes);
+app.route("/api/tickets", ticketRoutes);
+
+
+app.onError((error, context) => {
+    if (error instanceof ApiError) {
+        return context.json({
+        error: { code: error.code, message: error.message },
+        }, error.status);
+    }
+
+    console.error("Error de API:", context.req.method, context.req.routePath, error.name);
+
+    return context.json({
+        error: {
+        code: "INTERNAL_ERROR",
+        message: "No se pudo completar la operación.",
+        },
+    }, 500);
+});
 
 app.notFound((c) => c.json({
     error: {
