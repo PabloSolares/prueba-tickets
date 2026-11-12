@@ -14,11 +14,26 @@ services:
       - pgdata:/var/lib/postgresql/data
 
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "tickets", "-d", "tickets"]
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "tickets", "-d", "tickets"]
       interval: 3s
       timeout: 3s
       retries: 15
       start_period: 5s
-
+  api:
+    build:
+      context: ./server
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_USER: tickets
+      POSTGRES_DB: tickets
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      APP_ORIGIN: "${APP_ORIGIN:-http://127.0.0.1:3000}"
+      BETTER_AUTH_SECRET: "${BETTER_AUTH_SECRET:?Define BETTER_AUTH_SECRET en .env}"
+      AGENT_SIGNUP_CODE: "${AGENT_SIGNUP_CODE:?Define AGENT_SIGNUP_CODE en .env}"
+    ports:
+    - "127.0.0.1:3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
 volumes:
   pgdata:
