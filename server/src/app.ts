@@ -5,6 +5,7 @@ import { bodyLimit } from "hono/body-limit";
 import { authRoutes } from './auth/routes';
 import { ApiError } from "./http/errors";
 import { ticketRoutes } from "./tickets/routes";
+import { dashboardRoutes } from './tickets/dashboard';
 export const app = new Hono();
 
 app.get("/api/health", async (c) => {
@@ -34,7 +35,7 @@ app.use("/api/auth/*", bodyLimit({
 
 app.route("/api/auth", authRoutes);
 app.route("/api/tickets", ticketRoutes);
-
+app.route("/api/dashboard", dashboardRoutes);
 
 app.onError((error, context) => {
     if (error instanceof ApiError) {
