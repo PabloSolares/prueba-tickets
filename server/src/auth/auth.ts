@@ -70,7 +70,7 @@ export const auth = betterAuth({
                     }
 
                     if(role === "agente"){
-                        const code = headers?.get("x-agent-sigup-code") ?? "";
+                        const code = headers?.get("x-agent-signup-code") ?? "";
                         if( code.length > 128 || !timingSafeEqual(hashCode(code), expectedCode)){
                             throw new APIError("FORBIDDEN", {
                                 message: "El codigo de incorporacion no es valido",

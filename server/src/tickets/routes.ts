@@ -6,17 +6,34 @@ import {
   eq,
   getTableColumns,
   ilike,
+  isNull,
   or,
 } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { Hono } from "hono";
 import { requireSession, type AuthVariables } from "../auth/session";
 import { db } from "../db/client";
-import { comments, statusHistory, tickets, user } from "../db/schema";
+import { comments, statuses, statusHistory, tickets, user } from "../db/schema";
 import { ApiError, forbidden, notFound, parse, readJson } from "../http/errors";
-import { listInput, ticketEdit, ticketId, ticketInput } from "./validation";
+import {
+  commentInput,
+  listInput,
+  statusInput,
+  ticketEdit,
+  ticketId,
+  ticketInput,
+} from "./validation";
 
 type Actor = AuthVariables["Variables"]["actor"];
+
+type TicketStatus = (typeof statuses)[number];
+
+const nextStatus: Record<TicketStatus, TicketStatus | null> = {
+  abierto: "en_progreso",
+  en_progreso: "resuelto",
+  resuelto: "cerrado",
+  cerrado: null,
+};
 
 function ticketVisibility(actor: Actor){
     return actor.role === "empleado"
@@ -72,12 +89,15 @@ ticketRoutes.get("/", async (context) => {
     const { page, pageSize } = filters;
 
     const [items, totals] = await Promise.all([
-        db.select().from(tickets)
+        db.select()
+            .from(tickets)
             .where(conditions)
             .orderBy(desc(tickets.createdAt), desc(tickets.id))
-            .limit(page)
+            .limit(pageSize)
             .offset((page - 1) * pageSize),
-        db.select({total: count()}).from(tickets).where(conditions),
+        db.select({ total: count() })
+            .from(tickets)
+            .where(conditions),
     ]);
 
     return context.json({
@@ -150,4 +170,94 @@ ticketRoutes.patch("/:id", async (context) => {
     }
 
     return context.json({ data: updatedTicket });
+});
+
+ticketRoutes.post("/:id/assign", async (context) => {
+    const actor = context.get("actor");
+    const id = parse(ticketId, context.req.param("id"));
+
+    if (actor.role !== "agente") throw forbidden();
+    await findVisibleTicket(id, actor);
+
+    const [assignedTicket] = await db.update(tickets)
+        .set({ assignedTo: actor.id, updatedAt: new Date() })
+        .where(and(
+        eq(tickets.id, id),
+        eq(tickets.status, "abierto"),
+        isNull(tickets.assignedTo),
+        ))
+        .returning();
+
+    if (!assignedTicket) {
+        throw new ApiError(409, "CONFLICT", "El ticket ya está asignado o dejó de estar abierto.");
+    }
+
+    return context.json({ data: assignedTicket });
+});
+
+ticketRoutes.patch("/:id/status", async (context) => {
+    const actor = context.get("actor");
+    const id = parse(ticketId, context.req.param("id"));
+    const ticket = await findVisibleTicket(id, actor);
+
+    if (actor.role !== "agente" || ticket.assignedTo !== actor.id) {
+        throw forbidden();
+    }
+
+    const { status } = await readJson(context, statusInput);
+
+    if (nextStatus[ticket.status] !== status) {
+        throw new ApiError(409, "CONFLICT", "Solo puedes avanzar al siguiente estado.");
+    }
+
+    const changedAt = new Date();
+
+    const updatedTicket = await db.transaction(async (transaction) => {
+        const [updated] = await transaction.update(tickets)
+        .set({
+            status,
+            updatedAt: changedAt,
+            ...(status === "resuelto" ? { resolvedAt: changedAt } : {}),
+        })
+        .where(and(
+            eq(tickets.id, id),
+            eq(tickets.assignedTo, actor.id),
+            eq(tickets.status, ticket.status),
+        ))
+        .returning();
+
+        if (!updated) {
+        throw new ApiError(409, "CONFLICT", "El ticket cambió. Vuelve a consultarlo.");
+        }
+
+        await transaction.insert(statusHistory).values({
+        ticketId: id,
+        userId: actor.id,
+        fromStatus: ticket.status,
+        toStatus: status,
+        createdAt: changedAt,
+        });
+
+        return updated;
+    });
+
+    return context.json({ data: updatedTicket });
+});
+
+ticketRoutes.post("/:id/comments", async (context) => {
+    const actor = context.get("actor");
+    const id = parse(ticketId, context.req.param("id"));
+    const ticket = await findVisibleTicket(id, actor);
+
+    if (actor.id !== ticket.createdBy && actor.id !== ticket.assignedTo) {
+        throw forbidden();
+    }
+
+    const { content } = await readJson(context, commentInput);
+
+    const [comment] = await db.insert(comments)
+        .values({ ticketId: id, userId: actor.id, content })
+        .returning();
+
+    return context.json({ data: comment }, 201);
 });
