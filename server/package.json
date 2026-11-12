@@ -4,8 +4,10 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "start": "bun src/index.ts",
-        "typecheck": "tsc --noEmit"
+        "start": "bun run db:migrate && bun src/index.ts",
+        "typecheck": "tsc --noEmit",
+        "db:generate": "bun --bun drizzle-kit generate",
+        "db:migrate": "bun src/db/migrate.ts"
     },
     "dependencies": {
         "drizzle-orm" : "0.45.4",
@@ -14,6 +16,7 @@
     },
     "devDependencies": {
         "@types/bun": "1.4.4",
+        "drizzle-kit": "0.31.11",
         "typescript": "5.9.3"
     }
 

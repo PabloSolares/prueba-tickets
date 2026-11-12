@@ -1,5 +1,6 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
+import * as schema from "./schema";
 
 const {
     POSTGRES_HOST,
@@ -23,4 +24,4 @@ export const client = postgres({
     connect_timeout: 5,
 });
 
-export const db = drizzle(client);
+export const db = drizzle(client, { schema });
