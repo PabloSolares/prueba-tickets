@@ -1,0 +1,55 @@
+name: Verificar aplicación
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: tickets
+          POSTGRES_DB: tickets_test
+          POSTGRES_PASSWORD: ci-only-password
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd "pg_isready -U tickets -d tickets_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      POSTGRES_HOST: 127.0.0.1
+      POSTGRES_USER: tickets
+      POSTGRES_DB: tickets_test
+      POSTGRES_PASSWORD: ci-only-password
+      APP_ORIGIN: http://127.0.0.1:3000
+      BETTER_AUTH_SECRET: ci-only-9d60fa484c90421ea54c709472a7d181
+      AGENT_SIGNUP_CODE: ci-only-invite-3740f01f
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+
+      - name: Verificar backend
+        working-directory: server
+        run: |
+          bun install --frozen-lockfile
+          bun run typecheck
+          bun run db:migrate
+          bun test ./tests/tickets.test.ts
+
+      - name: Verificar frontend
+        working-directory: web
+        run: |
+          bun install --frozen-lockfile
+          bun run typecheck
+          bun run build
