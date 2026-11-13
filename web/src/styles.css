@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+@layer base {
+  body { @apply bg-slate-100 text-slate-900; }
+  h1 { @apply text-2xl font-semibold; }
+  h2 { @apply text-lg font-semibold; }
+  a { @apply break-words font-medium text-teal-800 underline; }
+  label { @apply block text-sm font-medium; }
+  input, select, textarea { @apply mt-1 block w-full rounded border border-slate-300 bg-white p-2; }
+  button { @apply rounded bg-teal-800 px-3 py-2 text-white disabled:opacity-50; }
+}
+
+@layer components {
+  .panel { @apply space-y-3 rounded-lg border border-slate-200 bg-white p-5; }
+}
